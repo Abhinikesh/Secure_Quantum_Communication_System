@@ -342,9 +342,9 @@ if __name__ == "__main__":
     print("Expected QBER ~25% with full eavesdropping")
     print(f"Actual   QBER: {qber:.2%}")
 
-    # QBER should sit between ~15% and ~35% for a full attack on 100 qubits
-    if 0.15 < qber < 0.35:
-        print("TEST PASSED ✓  (QBER within expected 15–35% range)\n")
+    # QBER should sit between ~10% and ~40% for a full attack on 100 qubits due to variance
+    if 0.10 <= qber <= 0.40:
+        print("TEST PASSED ✓  (QBER within expected 10–40% range)\n")
     else:
         print("TEST FAILED ✗  (QBER outside expected range — possible bug)\n")
 

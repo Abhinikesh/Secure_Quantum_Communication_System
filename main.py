@@ -323,14 +323,15 @@ def print_summary_table(results: list):
         results (list): List of result dicts returned by run_scenario().
     """
     # Column definitions: (header, width, key, formatter)
+    # scenario_name is truncated to 18 chars to keep the table tidy
     columns = [
-        ("Scenario",   18, "scenario_name",    lambda v: v),
+        ("Scenario",   18, "scenario_name",    lambda v: v[:18]),
         ("Qubits",      7, "num_qubits",        lambda v: str(v)),
         ("QBER",        9, "qber",              lambda v: f"{v * 100:.2f}%"),
-        ("Status",     18, "status",            lambda v: (
+        ("Status",     15, "status",            lambda v: (
             "✅ GENERATED" if v == "KEY GENERATED" else "❌ ABORTED"
         )),
-        ("Key Length",  11, "final_key_length", lambda v: f"{v} bits"),
+        ("Key Length",  10, "final_key_length", lambda v: f"{v} bits"),
     ]
 
     # Box drawing characters
