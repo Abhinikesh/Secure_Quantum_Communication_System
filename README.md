@@ -35,3 +35,5 @@ The BB84 protocol leverages quantum mechanical principles, specifically the no-c
 To run in GUI
 
 <!-- (qkd_env) (base) abhinikesh@Abhinikeshs-MacBook-Air Secure_Quantum_Communication_System % /Users/abhinikesh/Documents/Secure_Quantum_Communication_System/qkd_env/bin/python gui.py -->
+
+/Users/abhinikesh/Documents/Secure_Quantum_Communication_System/qkd_env/bin/python gui.py
