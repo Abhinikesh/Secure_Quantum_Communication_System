@@ -30,3 +30,8 @@ python visualize.py      # Generate all graphs
 
 ### Theory
 The BB84 protocol leverages quantum mechanical principles, specifically the no-cloning theorem and wave-function collapse, to secure communications. Alice sends information encoded in non-orthogonal bases, compelling any eavesdropper (Eve) to guess the measurement basis. Because an incorrect guess alters the photon's state, Eve's actions introduce unavoidable errors at the receiver's end. The system monitors the Quantum Bit Error Rate (QBER); if it exceeds the theoretical threshold of 11%, eavesdropping is detected and the key is safely discarded before use.
+
+
+To run in GUI
+
+<!-- (qkd_env) (base) abhinikesh@Abhinikeshs-MacBook-Air Secure_Quantum_Communication_System % /Users/abhinikesh/Documents/Secure_Quantum_Communication_System/qkd_env/bin/python gui.py -->
