@@ -74,7 +74,7 @@ BB84-QKD-Simulator/
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/BB84-QKD-Simulator.git
+git clone https://github.com/Abhinikesh/BB84-QKD-Simulator.git
 cd BB84-QKD-Simulator
 
 # Install dependencies
