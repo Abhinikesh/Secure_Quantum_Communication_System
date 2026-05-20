@@ -39,8 +39,7 @@ try:
     colorama_init(autoreset=True)
     _HAS_COLOR = True
 except ImportError:
-    # Provide no-op stubs so the rest of the file can freely reference
-    # Fore.* and Style.* without branching everywhere.
+    
     class _Stub:
         def __getattr__(self, _: str) -> str:
             return ""
