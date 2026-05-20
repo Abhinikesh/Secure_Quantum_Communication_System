@@ -31,9 +31,7 @@ from bob   import Bob
 from eve   import Eve
 import qber as QBER
 
-# ======================================================================
-# Optional colour support (colorama)
-# ======================================================================
+
 try:
     from colorama import init as colorama_init, Fore, Style
     colorama_init(autoreset=True)
@@ -48,9 +46,6 @@ except ImportError:
     _HAS_COLOR = False
 
 
-# ======================================================================
-# Colour-wrapped helper functions
-# ======================================================================
 def _green(text: str) -> str:
     return f"{Fore.GREEN}{text}{Style.RESET_ALL}"
 
@@ -70,9 +65,6 @@ def _magenta(text: str) -> str:
     return f"{Fore.MAGENTA}{text}{Style.RESET_ALL}"
 
 
-# ======================================================================
-# 1. Main Header
-# ======================================================================
 def print_main_header():
     """
     Print the ASCII-art banner that opens the simulation.
@@ -98,9 +90,6 @@ def print_main_header():
         print("  (Tip: pip install colorama for colour output)\n")
 
 
-# ======================================================================
-# 2. Scenario Header
-# ======================================================================
 def _print_scenario_header(number: int, title: str):
     """Print a clearly delimited header block for each scenario."""
     bar   = "─" * 56
@@ -111,9 +100,6 @@ def _print_scenario_header(number: int, title: str):
     print()
 
 
-# ======================================================================
-# 3. Step Printer
-# ======================================================================
 def _step(number: int, description: str, icon: str = "✓",
           color_fn=None, delay: float = 0.3):
     """
@@ -134,10 +120,6 @@ def _step(number: int, description: str, icon: str = "✓",
     print(f"{padded} {icon_str}")
     time.sleep(delay)
 
-
-# ======================================================================
-# 4. Core Scenario Runner
-# ======================================================================
 def run_scenario(
     scenario_name:  str,
     num_qubits:     int,
