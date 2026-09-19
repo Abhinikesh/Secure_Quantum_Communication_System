@@ -3,3 +3,28 @@
 [2026-09-19 12:13:11] AUDIT_SESSION_OPEN  | real_qkd_system.py started
 [2026-09-19 12:13:11] SESSION_STARTED              | session=2940418F  protocol=BB84
 [2026-09-19 12:13:11] SESSION_ENDED                | session=2940418F  outcome=KEY GENERATED  qber=0.0  key_length=191 bits
+
+────────────────────────────────────────────────────────────────────────
+[2026-09-19 12:39:06] AUDIT_SESSION_OPEN  | real_qkd_system.py started
+[2026-09-19 12:39:06] SESSION_STARTED              | session=7295C761  protocol=BB84
+[2026-09-19 12:39:06] SESSION_ENDED                | session=7295C761  outcome=KEY GENERATED  qber=0.0  key_length=206 bits
+[2026-09-19 12:39:06] KEY_GENERATED                | key_id=ECDD698D  length=206 bits
+[2026-09-19 12:39:06] KEY_USED                     | key_id=ECDD698D  length=206 bits
+[2026-09-19 12:39:06] MESSAGE_ENCRYPTED            | method=AES-256-CBC  msg_len=60chars  key_id=ECDD698D
+[2026-09-19 12:39:06] MESSAGE_DECRYPTED            | method=AES-256-CBC
+[2026-09-19 12:39:06] SESSION_STARTED              | session=EFD76A9D  protocol=BB84
+[2026-09-19 12:39:06] SESSION_ENDED                | session=EFD76A9D  outcome=ABORTED  qber=0.34  key_length=0 bits
+[2026-09-19 12:39:06] EAVESDROPPER_DETECTED        | protocol=BB84  qber=34.00%  threshold=11.0%
+[2026-09-19 12:39:06] PROTOCOL_ABORTED             | protocol=BB84  qber=34.00%
+[2026-09-19 12:39:06] PROTOCOL_ABORTED             | qber=34.00%
+[2026-09-19 12:39:06] SESSION_STARTED              | session=B0B4A058  protocol=BB84
+[2026-09-19 12:39:06] SESSION_ENDED                | session=B0B4A058  outcome=KEY GENERATED  qber=0.0  key_length=96 bits
+[2026-09-19 12:39:06] KEY_GENERATED                | key_id=D4F622A8  length=96 bits
+[2026-09-19 12:39:06] SESSION_STARTED              | session=25CE4FA2  protocol=BB84-Enhanced
+[2026-09-19 12:39:06] SESSION_ENDED                | session=25CE4FA2  outcome=KEY GENERATED  qber=0.0  key_length=99 bits
+[2026-09-19 12:39:06] KEY_GENERATED                | key_id=0C1F0C66  length=99 bits
+[2026-09-19 12:39:06] SESSION_STARTED              | session=48E490BB  protocol=Six-State
+[2026-09-19 12:39:06] SESSION_ENDED                | session=48E490BB  outcome=KEY GENERATED  qber=0.0  key_length=99 bits
+[2026-09-19 12:39:06] KEY_GENERATED                | key_id=429D3DC0  length=99 bits
+[2026-09-19 12:39:06] BENCHMARK_STARTED            | runs=50  qubits=256  eve=False
+[2026-09-19 12:39:07] BENCHMARK_ENDED              | runs=50  success=50/50  avg_time=0.0002s  avg_qber=0.00%  keys_per_sec=6121.2

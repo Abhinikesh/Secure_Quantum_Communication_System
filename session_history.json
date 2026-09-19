@@ -1,0 +1,72 @@
+[
+  {
+    "session_id": "7295c761-7952-4623-badb-6bc745f4b832",
+    "protocol": "BB84",
+    "timestamp_start": "2026-09-19 12:39:06",
+    "timestamp_end": "2026-09-19 12:39:06",
+    "num_qubits_used": 512,
+    "qber_measured": 0.0,
+    "key_length": 206,
+    "message_encrypted": true,
+    "eve_present": false,
+    "outcome": "KEY GENERATED",
+    "encryption_method": "AES-256-CBC",
+    "duration_sec": 0.0
+  },
+  {
+    "session_id": "efd76a9d-2850-4ef1-b122-4f801ccfdd7d",
+    "protocol": "BB84",
+    "timestamp_start": "2026-09-19 12:39:06",
+    "timestamp_end": "2026-09-19 12:39:06",
+    "num_qubits_used": 512,
+    "qber_measured": 0.34,
+    "key_length": 0,
+    "message_encrypted": false,
+    "eve_present": true,
+    "outcome": "ABORTED",
+    "encryption_method": "N/A",
+    "duration_sec": 0.0
+  },
+  {
+    "session_id": "b0b4a058-467b-4966-a37e-739071b7e3f6",
+    "protocol": "BB84",
+    "timestamp_start": "2026-09-19 12:39:06",
+    "timestamp_end": "2026-09-19 12:39:06",
+    "num_qubits_used": 256,
+    "qber_measured": 0.0,
+    "key_length": 96,
+    "message_encrypted": false,
+    "eve_present": false,
+    "outcome": "KEY GENERATED",
+    "encryption_method": "N/A",
+    "duration_sec": 0.0
+  },
+  {
+    "session_id": "25ce4fa2-0df0-4c03-864b-abf5e5789a58",
+    "protocol": "BB84-Enhanced",
+    "timestamp_start": "2026-09-19 12:39:06",
+    "timestamp_end": "2026-09-19 12:39:06",
+    "num_qubits_used": 256,
+    "qber_measured": 0.0,
+    "key_length": 99,
+    "message_encrypted": false,
+    "eve_present": false,
+    "outcome": "KEY GENERATED",
+    "encryption_method": "N/A",
+    "duration_sec": 0.0
+  },
+  {
+    "session_id": "48e490bb-3006-4350-bee2-d02d31e281a0",
+    "protocol": "Six-State",
+    "timestamp_start": "2026-09-19 12:39:06",
+    "timestamp_end": "2026-09-19 12:39:06",
+    "num_qubits_used": 256,
+    "qber_measured": 0.0,
+    "key_length": 99,
+    "message_encrypted": false,
+    "eve_present": false,
+    "outcome": "KEY GENERATED",
+    "encryption_method": "N/A",
+    "duration_sec": 0.0
+  }
+]

@@ -974,10 +974,12 @@ def _run_encrypted_session(
     Returns:
         Summary dict, or None if QKD was aborted.
     """
+    # We run the protocol WITHOUT passing key_store to the selector so we
+    # control exactly when the key is added and retrieved.
     selector = ProtocolSelector(
         audit_log   = audit_log,
         session_mgr = session_mgr,
-        key_store   = key_store,
+        key_store   = None,   # we handle the store ourselves below
     )
 
     # ── QKD ───────────────────────────────────────────────────────────────
@@ -998,9 +1000,9 @@ def _run_encrypted_session(
         print(f"  {R}Message NOT encrypted — forward secrecy maintained.{RS}")
         return None
 
-    # Retrieve key from store (marks it as used immediately)
-    key_id = res["key_id"]
-    key    = key_store.get_key(key_id)
+    # Add the raw key to the store and immediately retrieve it (marks used)
+    key_id  = key_store.add_key(res["final_key"])
+    key     = key_store.get_key(key_id)
     key_len = len(key)
     print(f"  {G}✓ Key established: {key_len} bits  "
           f"[{_short_id(key_id)}]{RS}")
