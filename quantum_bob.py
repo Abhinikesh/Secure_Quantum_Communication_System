@@ -36,7 +36,7 @@ except ImportError:
     QISKIT_AVAILABLE = False
     warnings.warn(
         "Qiskit / qiskit-aer not found.  "
-        "Install with: pip install qiskit qiskit-aer qiskit-ibm-runtime",
+        "Install with: pip install qiskit qiskit-aer",
         RuntimeWarning,
         stacklevel=2,
     )
@@ -46,7 +46,7 @@ def _require_qiskit() -> None:
     if not QISKIT_AVAILABLE:
         raise ImportError(
             "Qiskit is required but not installed.\n"
-            "Run:  pip install qiskit qiskit-aer qiskit-ibm-runtime"
+            "Run:  pip install qiskit qiskit-aer"
         )
 
 
@@ -59,15 +59,18 @@ class QuantumBob:
 
     Receives Alice's state-preparation circuits, adds his own measurement
     gate (choosing his basis randomly using quantum randomness), and
-    executes each circuit on a quantum backend to get a genuine measurement
-    outcome.
+    executes each circuit on Qiskit AerSimulator (software) to get a
+    genuine quantum measurement outcome.
+
+    No physical hardware, internet connection, or IBM account is required.
+    Everything runs locally on your machine.
 
     Attributes
     ----------
-    backend           : AerSimulator  The Qiskit backend (local or IBM HW).
-    backend_name      : str           Human-readable backend description.
-    bases             : list[int]     Bob's randomly chosen measurement bases.
-    measurements      : list[int]     Bob's measurement outcomes (0 or 1).
+    backend      : AerSimulator  The local Qiskit AerSimulator backend.
+    backend_name : str           Human-readable backend description.
+    bases        : list[int]     Bob's randomly chosen measurement bases.
+    measurements : list[int]     Bob's measurement outcomes (0 or 1).
     """
 
     # -----------------------------------------------------------------------
@@ -249,137 +252,13 @@ class QuantumBob:
         return self.bases, self.measurements
 
     # -----------------------------------------------------------------------
-    def run_on_ibm_real_hardware(
-        self,
-        circuits: List["QuantumCircuit"],
-        ibm_token: str,
-        timeout_seconds: int = 300,
-    ) -> List[int]:
-        """
-        Submit circuits to a REAL IBM Quantum computer and collect results.
-
-        This method executes the circuits on genuine quantum hardware —
-        real qubits subject to actual quantum mechanical noise, decoherence,
-        and gate errors. Results reflect physical quantum reality.
-
-        Steps
-        -----
-        1. Connect to IBM Quantum using the provided API token.
-        2. Select the least-busy operational real-hardware backend.
-        3. Generate Bob's quantum-random bases (locally, for speed).
-        4. Build one measurement circuit per qubit (copy + add Bob's gate).
-        5. Batch-submit all circuits to IBM Quantum.
-        6. Wait for results (real hardware queues can take minutes).
-        7. Parse and return the measurement outcomes.
-
-        Parameters
-        ----------
-        circuits        : Alice's state-prep circuits.
-        ibm_token       : IBM Quantum API token (from https://quantum.ibm.com).
-        timeout_seconds : How long to wait before giving up (default: 5 min).
-
-        Returns
-        -------
-        list[int] : Bob's measurement results from real quantum hardware.
-                    Falls back to AerSimulator if hardware is unavailable.
-        """
-        try:
-            from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
-            print("\n[Bob] Connecting to IBM Quantum for real hardware execution...")
-            service = QiskitRuntimeService(channel="ibm_quantum", token=ibm_token)
-
-            # Select least-busy real device
-            hw_backend = service.least_busy(
-                operational=True, simulator=False, min_num_qubits=5
-            )
-            print(f"  Selected hardware backend: {hw_backend.name}")
-            print(f"  Queue position and wait time depend on current load.")
-
-            # Generate Bob's bases locally (quantum-random)
-            n = len(circuits)
-            print(f"  Generating {n} quantum-random bases locally...")
-            self.bases = self._quantum_random_bits(n)
-
-            # Build measurement circuits
-            print(f"  Building {n} measurement circuits...")
-            meas_circuits = []
-            for i, circ in enumerate(circuits):
-                qc = copy.deepcopy(circ)
-                if self.bases[i] == 1:
-                    qc.h(0)
-                qc.measure(0, 0)
-                meas_circuits.append(transpile(qc, hw_backend))
-
-            # Submit to IBM Quantum
-            print(f"  Submitting {n} circuits to {hw_backend.name}...")
-            print(f"  (Real hardware can take several minutes in the queue)")
-            sampler = Sampler(hw_backend)
-            job = sampler.run(meas_circuits, shots=1)
-
-            print(f"  Job ID: {job.job_id()}")
-            print(f"  Waiting for results (timeout: {timeout_seconds}s)...")
-
-            # Poll for completion
-            import time
-            elapsed = 0
-            poll_interval = 10
-            while elapsed < timeout_seconds:
-                status = job.status()
-                if status.name in ("DONE", "CANCELLED", "ERROR"):
-                    break
-                print(f"  Status: {status.name} ({elapsed}s elapsed)...", end="\r")
-                time.sleep(poll_interval)
-                elapsed += poll_interval
-
-            if job.status().name != "DONE":
-                raise TimeoutError(
-                    f"IBM Quantum job did not complete within {timeout_seconds}s. "
-                    f"Job ID: {job.job_id()} — check https://quantum.ibm.com"
-                )
-
-            # Parse results
-            result = job.result()
-            self.measurements = []
-            for i in range(n):
-                pub_result = result[i]
-                # Extract the classical bit value for qubit 0
-                bit_array = pub_result.data.c
-                bit = int(bit_array.get_int_counts().get("0", 0) == 0)
-                self.measurements.append(bit)
-
-            print(f"\n✓ Real quantum hardware measurements complete!")
-            return self.measurements
-
-        except TimeoutError as te:
-            print(f"\n[Bob] Timeout: {te}")
-            print("[Bob] Falling back to AerSimulator for this session.")
-            return self.measure_all(circuits)[1]
-
-        except Exception as exc:
-            warnings.warn(
-                f"IBM Quantum hardware execution failed: {exc}\n"
-                "Falling back to AerSimulator.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return self.measure_all(circuits)[1]
-
-    # -----------------------------------------------------------------------
     def get_backend_info(self) -> None:
-        """Print a summary of the active backend and its capabilities."""
+        """Print a summary of the active Qiskit AerSimulator backend."""
         print(f"\n[Bob] Active backend: {self.backend_name}")
-        if "AerSimulator" in self.backend_name:
-            print("  Mode: Local quantum simulation (no network required)")
-            print("  Speed: Very fast (~microseconds per circuit)")
-            print("  Noise: Ideal (no hardware errors) unless noise model applied")
-        else:
-            print("  Mode: Real IBM Quantum hardware")
-            try:
-                props = self.backend.properties()
-                print(f"  Number of qubits: {self.backend.num_qubits}")
-                print(f"  Backend name: {self.backend.name}")
-            except Exception:
-                print("  (Backend properties unavailable)")
+        print("  Mode   : Qiskit AerSimulator (software — local, no network)")
+        print("  Speed  : Very fast (~microseconds per circuit)")
+        print("  Noise  : Ideal (no hardware errors) unless noise model applied")
+        print("  IBM    : Not required")
 
 
 # ===========================================================================
@@ -390,7 +269,8 @@ if __name__ == "__main__":
 
     print("=" * 60)
     print("  quantum_bob.py -- standalone test")
-    print("  Using Qiskit AerSimulator (local)")
+    print("  Backend: Qiskit AerSimulator (software)")
+    print("  No IBM account or internet required.")
     print("=" * 60)
 
     NUM_QUBITS = 16
