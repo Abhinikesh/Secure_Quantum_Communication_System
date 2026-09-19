@@ -1,6 +1,7 @@
 numpy
 matplotlib
 colorama
+cryptography
 qiskit
 qiskit-aer
 qiskit-ibm-runtime
