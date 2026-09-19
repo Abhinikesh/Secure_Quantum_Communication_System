@@ -1,0 +1,5 @@
+
+────────────────────────────────────────────────────────────────────────
+[2026-09-19 12:13:11] AUDIT_SESSION_OPEN  | real_qkd_system.py started
+[2026-09-19 12:13:11] SESSION_STARTED              | session=2940418F  protocol=BB84
+[2026-09-19 12:13:11] SESSION_ENDED                | session=2940418F  outcome=KEY GENERATED  qber=0.0  key_length=191 bits
