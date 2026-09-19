@@ -1,3 +1,6 @@
 numpy
 matplotlib
 colorama
+qiskit
+qiskit-aer
+qiskit-ibm-runtime
