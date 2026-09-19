@@ -100,14 +100,32 @@ class QKDSimulatorGUI:
         # Latest run properties
         self.current_qber = 0.0
         self.final_key_str = ""
-        
+
         self.header_dots = []
         self.dot_pulse_state = 0
-        
+
+        # ── New feature state variables ────────────────────────────────────
+        # Encryption
+        self.var_encrypt_after_qkd = tk.BooleanVar(value=False)
+        self.var_enc_method        = tk.StringVar(value="AES")
+        self.var_message           = tk.StringVar(value="Hello Bob! This message is quantum-secured.")
+        self.last_enc_result       = {}   # populated by encryption worker
+
+        # Network
+        self.var_net_mode   = tk.StringVar(value="Demo")
+        self.var_net_role   = tk.StringVar(value="Alice")
+        self.var_net_ip     = tk.StringVar(value="127.0.0.1")
+        self.var_net_port   = tk.StringVar(value="9999")
+
+        # Quantum backend
+        self.var_backend    = tk.StringVar(value="Simulation")
+        self.var_ibm_token  = tk.StringVar(value="")
+        self._qiskit_available = None   # None = not yet checked
+
         self._setup_styles()
         self._setup_layout()
         self._setup_menu()
-        
+
         self.update_time()
 
     def _center_window(self, w, h):
@@ -325,15 +343,71 @@ class QKDSimulatorGUI:
         btn_reset = HoverButton(f_btn, BORDER_COLOR, "#404852", text="🔄 RESET", font=("Helvetica", 13, "bold"), fg="white", height=2, command=self._reset_gui)
         btn_reset.pack(fill=tk.X, pady=5)
 
-        # SECTION 4 - Speed
+        # SECTION 4 — Encryption Settings
+        lf_enc = ttk.LabelFrame(self.left_panel, text=" 🔐 ENCRYPTION SETTINGS ")
+        lf_enc.pack(fill=tk.X, padx=15, pady=5)
+
+        f_enc = tk.Frame(lf_enc, bg=CARD_BG)
+        f_enc.pack(fill=tk.X, padx=10, pady=(8, 2))
+        tk.Label(f_enc, text="Message to encrypt:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        self.enc_entry = tk.Entry(f_enc, textvariable=self.var_message, bg="#0d1117", fg=TEXT_PRIMARY,
+                                  insertbackground=ACCENT_COLOR, relief=tk.FLAT, font=("Consolas", 9))
+        self.enc_entry.pack(fill=tk.X, pady=3)
+
+        f_enc2 = tk.Frame(lf_enc, bg=CARD_BG)
+        f_enc2.pack(fill=tk.X, padx=10, pady=2)
+        tk.Label(f_enc2, text="Encryption method:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        for val, txt in [("OTP","OTP (perfect)"), ("AES","AES-256 (industry)"), ("XOR","XOR (demo)")]:
+            ttk.Radiobutton(f_enc2, text=txt, variable=self.var_enc_method, value=val).pack(anchor="w", padx=5)
+
+        f_enc3 = tk.Frame(lf_enc, bg=CARD_BG)
+        f_enc3.pack(fill=tk.X, padx=10, pady=(4, 8))
+        self.chk_encrypt = tk.Checkbutton(f_enc3, text="Encrypt after QKD",
+                                          variable=self.var_encrypt_after_qkd,
+                                          bg=CARD_BG, fg=TEXT_PRIMARY,
+                                          selectcolor=BG_COLOR, activebackground=CARD_BG)
+        self.chk_encrypt.pack(anchor="w")
+
+        # SECTION 5 — Network Settings
+        lf_net = ttk.LabelFrame(self.left_panel, text=" 🌐 NETWORK SETTINGS ")
+        lf_net.pack(fill=tk.X, padx=15, pady=5)
+
+        f_net = tk.Frame(lf_net, bg=CARD_BG)
+        f_net.pack(fill=tk.X, padx=10, pady=(8, 2))
+        tk.Label(f_net, text="Network Mode:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        f_net_mode = tk.Frame(f_net, bg=CARD_BG)
+        f_net_mode.pack(fill=tk.X)
+        for val, txt in [("Demo","Demo"), ("Real","Real")]:
+            ttk.Radiobutton(f_net_mode, text=txt, variable=self.var_net_mode, value=val).pack(side=tk.LEFT, padx=4)
+
+        f_net2 = tk.Frame(lf_net, bg=CARD_BG)
+        f_net2.pack(fill=tk.X, padx=10, pady=2)
+        tk.Label(f_net2, text="Role:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        f_net_role = tk.Frame(f_net2, bg=CARD_BG)
+        f_net_role.pack(fill=tk.X)
+        for val, txt in [("Alice","Alice"), ("Bob","Bob")]:
+            ttk.Radiobutton(f_net_role, text=txt, variable=self.var_net_role, value=val).pack(side=tk.LEFT, padx=4)
+
+        f_net3 = tk.Frame(lf_net, bg=CARD_BG)
+        f_net3.pack(fill=tk.X, padx=10, pady=(2, 8))
+        tk.Label(f_net3, text="Alice IP:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        tk.Entry(f_net3, textvariable=self.var_net_ip, bg="#0d1117", fg=TEXT_PRIMARY,
+                 insertbackground=ACCENT_COLOR, relief=tk.FLAT, font=("Consolas", 9), width=16).pack(fill=tk.X, pady=2)
+        f_net4 = tk.Frame(lf_net, bg=CARD_BG)
+        f_net4.pack(fill=tk.X, padx=10, pady=(0, 8))
+        tk.Label(f_net4, text="Port:", bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9)).pack(anchor="w")
+        tk.Entry(f_net4, textvariable=self.var_net_port, bg="#0d1117", fg=TEXT_PRIMARY,
+                 insertbackground=ACCENT_COLOR, relief=tk.FLAT, font=("Consolas", 9), width=8).pack(anchor="w", pady=2)
+
+        # SECTION 6 — Speed (original — now at bottom)
         f_spd = tk.Frame(self.left_panel, bg=CARD_BG)
         f_spd.pack(fill=tk.X, padx=15, pady=10, side=tk.BOTTOM)
         tk.Label(f_spd, text="Simulation Speed", bg=CARD_BG, fg=TEXT_PRIMARY).pack(anchor="center")
         f_r = tk.Frame(f_spd, bg=CARD_BG)
         f_r.pack(pady=5)
-        ttk.Radiobutton(f_r, text="Fast", variable=self.var_speed, value="Fast").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(f_r, text="Fast",   variable=self.var_speed, value="Fast").pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(f_r, text="Normal", variable=self.var_speed, value="Normal").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(f_r, text="Slow", variable=self.var_speed, value="Slow").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(f_r, text="Slow",   variable=self.var_speed, value="Slow").pack(side=tk.LEFT, padx=5)
 
     def _snap_qubits(self, val):
         v = int(float(val))
@@ -369,10 +443,25 @@ class QKDSimulatorGUI:
         self.notebook.add(self.tab_graphs, text=" 📈 LIVE GRAPHS ")
         self._setup_graphs_tab()
         
-        # TAB 3 - STATISTICS
+        # TAB 3 — STATISTICS
         self.tab_stats = tk.Frame(self.notebook, bg=PANEL_BG)
         self.notebook.add(self.tab_stats, text=" 📋 STATISTICS ")
         self._setup_statistics_tab()
+
+        # TAB 4 — ENCRYPT MESSAGE
+        self.tab_encrypt = tk.Frame(self.notebook, bg=PANEL_BG)
+        self.notebook.add(self.tab_encrypt, text=" 💬 ENCRYPT MESSAGE ")
+        self._setup_encrypt_tab()
+
+        # TAB 5 — NETWORK MODE
+        self.tab_network = tk.Frame(self.notebook, bg=PANEL_BG)
+        self.notebook.add(self.tab_network, text=" 🌐 NETWORK MODE ")
+        self._setup_network_tab()
+
+        # TAB 6 — QUANTUM BACKEND
+        self.tab_backend = tk.Frame(self.notebook, bg=PANEL_BG)
+        self.notebook.add(self.tab_backend, text=" ⚙️ QUANTUM BACKEND ")
+        self._setup_backend_tab()
 
     def _setup_protocol_tab(self):
         # TOP - Canvas
@@ -549,12 +638,27 @@ class QKDSimulatorGUI:
         self.tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # ROW 3 - Analysis
+        # ROW 3 — Analysis
         f_anal = tk.Frame(self.tab_stats, bg=PANEL_BG)
         f_anal.pack(fill=tk.X, padx=15, pady=15)
         HoverButton(f_anal, BORDER_COLOR, DANGER_COLOR, text="Clear History", command=self._clear_history).pack(side=tk.LEFT)
         self.lbl_analysis = tk.Label(f_anal, text="(Run simulation to generate auto-analysis...)", font=("Helvetica", 10, "italic"), fg=TEXT_SECONDARY, bg=PANEL_BG, justify=tk.LEFT, wraplength=400)
         self.lbl_analysis.pack(side=tk.LEFT, padx=20)
+
+        # ROW 4 — Backend / Extras info card
+        f_extra = tk.Frame(self.tab_stats, bg=CARD_BG, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        f_extra.pack(fill=tk.X, padx=15, pady=(0, 10))
+        tk.Label(f_extra, text="LAST RUN DETAILS", font=("Helvetica", 9, "bold"), fg=TEXT_SECONDARY, bg=CARD_BG).pack(anchor="w", padx=10, pady=(6, 2))
+        f_ex_grid = tk.Frame(f_extra, bg=CARD_BG)
+        f_ex_grid.pack(fill=tk.X, padx=10, pady=(0, 8))
+        for col_txt in ["Backend Used", "Quantum Randomness", "Network Used", "Encryption Used"]:
+            tk.Label(f_ex_grid, text=f"{col_txt}:", font=("Helvetica", 9), fg=TEXT_SECONDARY, bg=CARD_BG, width=20, anchor="w").grid(row=list(["Backend Used","Quantum Randomness","Network Used","Encryption Used"]).index(col_txt), column=0, sticky="w")
+        self.lbl_ex_backend   = tk.Label(f_ex_grid, text="—", font=("Helvetica", 9), fg=TEXT_PRIMARY, bg=CARD_BG, anchor="w")
+        self.lbl_ex_quantum   = tk.Label(f_ex_grid, text="—", font=("Helvetica", 9), fg=TEXT_PRIMARY, bg=CARD_BG, anchor="w")
+        self.lbl_ex_network   = tk.Label(f_ex_grid, text="—", font=("Helvetica", 9), fg=TEXT_PRIMARY, bg=CARD_BG, anchor="w")
+        self.lbl_ex_encrypt   = tk.Label(f_ex_grid, text="—", font=("Helvetica", 9), fg=TEXT_PRIMARY, bg=CARD_BG, anchor="w")
+        for row_i, lbl in enumerate([self.lbl_ex_backend, self.lbl_ex_quantum, self.lbl_ex_network, self.lbl_ex_encrypt]):
+            lbl.grid(row=row_i, column=1, sticky="w", padx=10)
 
     def _setup_right_panel(self):
         tk.Label(self.right_panel, text="🔑 SIMULATION RESULTS", font=("Helvetica", 12, "bold"), fg=ACCENT_COLOR, bg=CARD_BG).pack(pady=(15, 15))
@@ -625,11 +729,16 @@ class QKDSimulatorGUI:
         self.lbl_sb_dot.pack(side=tk.LEFT, padx=(10,2))
         self.lbl_sb_status = tk.Label(self.status_bar, text="Ready", fg=TEXT_SECONDARY, bg="#010409")
         self.lbl_sb_status.pack(side=tk.LEFT)
-        
+
         tk.Label(self.status_bar, text="| Protocol: BB84 |", fg=BORDER_COLOR, bg="#010409").pack(side=tk.LEFT, padx=10)
         self.lbl_sb_info = tk.Label(self.status_bar, text="Qubits: 256  |  QBER: --  |  Eve: Disabled", fg=TEXT_SECONDARY, bg="#010409")
         self.lbl_sb_info.pack(side=tk.LEFT)
-        
+
+        # Mode indicator (new)
+        tk.Label(self.status_bar, text="|", fg=BORDER_COLOR, bg="#010409").pack(side=tk.LEFT, padx=4)
+        self.lbl_sb_mode = tk.Label(self.status_bar, text="Mode: Simulation", fg=ACCENT_COLOR, bg="#010409", font=("Helvetica", 9, "bold"))
+        self.lbl_sb_mode.pack(side=tk.LEFT)
+
         tk.Label(self.status_bar, text="Python 3 | tkinter", fg=BORDER_COLOR, bg="#010409").pack(side=tk.RIGHT, padx=10)
         self.lbl_sb_time = tk.Label(self.status_bar, text="00:00:00", fg=TEXT_SECONDARY, bg="#010409")
         self.lbl_sb_time.pack(side=tk.RIGHT)
@@ -784,35 +893,52 @@ class QKDSimulatorGUI:
         if self.is_running:
             messagebox.showwarning("Simulation Running", "A simulation is already in progress.")
             return
-            
+
+        # Network mode guard
+        if self.var_net_mode.get() == "Real":
+            messagebox.showinfo(
+                "Real Network Mode",
+                "Real network mode requires two terminals (or two computers).\n\n"
+                "  Terminal 1:  python network_alice.py\n"
+                "  Terminal 2:  python network_bob.py 127.0.0.1\n\n"
+                "Or open the 🌐 NETWORK MODE tab for detailed instructions.\n\n"
+                "Switching back to Demo mode for this run."
+            )
+            self.var_net_mode.set("Demo")
+
         self.is_running = True
         self.notebook.select(self.tab_protocol)
         self._reset_gui()
-        self.is_running = True # Reset clears it, reset it back
-        
+        self.is_running = True  # Reset clears it, restore
+
         self.btn_run.config(state=tk.DISABLED, bg=IDLE_GRAY)
         self.lbl_head_status.config(text="SIMULATION RUNNING...")
-        
-        self.lbl_status_icon.config(text="⟳", fg=ACCENT_COLOR) # Using simple character rotation or just display
+
+        self.lbl_status_icon.config(text="⟳", fg=ACCENT_COLOR)
         self.lbl_status_main.config(text="RUNNING")
         self.lbl_status_sub.config(text="Executing protocol steps...")
         self.lbl_sb_dot.config(fg=WARN_COLOR)
         self.lbl_sb_status.config(text="Running...")
-        
+
+        # Update mode indicator
+        backend = self.var_backend.get()
+        mode_str = {"Simulation": "Simulation", "Qiskit": "Quantum", "IBM": "IBM Quantum"}.get(backend, "Simulation")
+        self.lbl_sb_mode.config(text=f"Mode: {mode_str}")
+
         self.progress_bar.pack(pady=10, fill=tk.X, padx=20)
         self.progress_bar['value'] = 0
-        
-        # Eve visuals setup
+
+        # Eve visuals
         if self.var_eve_enabled.get():
             self.anim_canvas.itemconfig(self.eve_rect, outline=DANGER_COLOR, fill="#3d1418")
             self.anim_canvas.itemconfig(self.eve_text, fill=DANGER_COLOR)
         else:
             self.anim_canvas.itemconfig(self.eve_rect, outline=IDLE_GRAY, fill=CARD_BG)
             self.anim_canvas.itemconfig(self.eve_text, fill=IDLE_GRAY)
-            
+
         # Start photon animation loop
         self._animate_photons(self.var_eve_enabled.get())
-        
+
         thread = threading.Thread(target=self._simulation_worker)
         thread.daemon = True
         thread.start()
@@ -931,12 +1057,25 @@ class QKDSimulatorGUI:
                 "sample": sample_used,
                 "final": final_len,
                 "is_success": not eve_detected,
-                "final_key_arr": final_key
+                "final_key_arr": final_key,
+                # new fields
+                "backend":  self.var_backend.get(),
+                "net_mode": self.var_net_mode.get(),
             }
             self.run_history.append(run_stats)
             self.final_key_str = "".join(str(b) for b in final_key) if final_len > 0 else ""
-            
+
+            # Optional post-QKD encryption
+            enc_result = None
+            if not eve_detected and self.var_encrypt_after_qkd.get() and final_key:
+                enc_result = self._encrypt_with_key(final_key)
+                run_stats["enc_result"] = enc_result
+
             self._update_ui(self._finish_simulation_ui, run_stats)
+
+            # Populate encrypt tab if encryption was run
+            if enc_result:
+                self._update_ui(self._show_encrypt_result, enc_result)
 
         except Exception as e:
             err = traceback.format_exc()
@@ -990,7 +1129,7 @@ class QKDSimulatorGUI:
 
         # Update History & Graphs
         self._update_status_bar_info()
-        self._update_statistics_tab()
+        self._update_statistics_tab(stats)
         self._update_live_graphs(stats)
         
         # Reset Eve visual if she was on
@@ -1006,32 +1145,42 @@ class QKDSimulatorGUI:
     # -------------------------------------------------------------------------
     # STATISTICS AND DISPLAY UDPATES
     # -------------------------------------------------------------------------
-    def _update_statistics_tab(self):
-        tot = len(self.run_history)
+    def _update_statistics_tab(self, stats=None):
+        tot  = len(self.run_history)
         succ = sum(1 for r in self.run_history if r['is_success'])
         abrt = tot - succ
         avg_q = sum(r['qber'] for r in self.run_history) / tot if tot > 0 else 0.0
-        
-        # Simple count-up anim simulation (just set it here to be robust)
+
         self.lbls_stat["TOTAL RUNS"].config(text=str(tot))
         self.lbls_stat["SUCCESSFUL"].config(text=f"{succ}\n✅ {int(succ/tot*100) if tot>0 else 0}%", font=("Helvetica", 14, "bold"))
         self.lbls_stat["ABORTED"].config(text=f"{abrt}\n❌ {int(abrt/tot*100) if tot>0 else 0}%", font=("Helvetica", 14, "bold"))
         self.lbls_stat["AVG QBER"].config(text=f"{avg_q:.1f}%")
-        
+
         # Add to Treeview
         r = self.run_history[-1]
         item = self.tree.insert("", 0, values=(r['id'], r['start_qubits'], r['eve_str'], f"{r['qber']:.1f}%", r['status'], f"{r['key_len']} bits"))
         self.tree.selection_set(item)
-        
-        # Update Analysis text
+
+        # Update extra-info labels
+        enc_res = r.get("enc_result")
+        enc_used = "No"
+        if enc_res and enc_res.get("matched"):
+            enc_used = enc_res.get("method", "Yes")
+        self.lbl_ex_backend.config(text=r.get("backend", "Simulation"))
+        self.lbl_ex_quantum.config(text="Yes" if r.get("backend") == "Qiskit" else "No")
+        self.lbl_ex_network.config(text="Yes" if r.get("net_mode") == "Real" else "No")
+        self.lbl_ex_encrypt.config(text=enc_used)
+
+        # Analysis text
         anal_text = f"Analysis of Run {r['id']}: With {r['start_qubits']} qubits "
         anal_text += f"and Eve {'active' if r['eve_str']!='No' else 'inactive'}, "
         anal_text += f"the protocol achieved a QBER of {r['qber']:.1f}%. "
         if r['is_success']:
-            anal_text += f"This is below the threshold. A final key of length {r['final']} bits was generated securely."
+            anal_text += f"A final key of {r['final']} bits was generated securely."
+            if enc_used != "No":
+                anal_text += f" Message encrypted with {enc_used}."
         else:
-            anal_text += f"This exceeds the threshold. The presence of an eavesdropper was detected and key generation was aborted."
-            
+            anal_text += "Eavesdropper detected — key generation aborted."
         self.lbl_analysis.config(text=anal_text)
 
     def _clear_history(self):
@@ -1221,9 +1370,503 @@ class QKDSimulatorGUI:
                 pass
             self._apply_theme_recursive(child, bg, panel, card, text, sec)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # NEW TAB BUILDERS
+    # =========================================================================
+
+    # ── Tab 4: Encrypt Message ──────────────────────────────────────────────
+    def _setup_encrypt_tab(self):
+        """Build the 💬 ENCRYPT MESSAGE tab."""
+        # Header
+        hdr = tk.Frame(self.tab_encrypt, bg=PANEL_BG)
+        hdr.pack(fill=tk.X, padx=15, pady=(15, 5))
+        tk.Label(hdr, text="💬 ENCRYPT A MESSAGE USING YOUR QKD KEY",
+                 font=("Helvetica", 13, "bold"), fg=ACCENT_COLOR, bg=PANEL_BG).pack(anchor="w")
+        tk.Label(hdr, text="Run the simulation first to generate a key, then encrypt a message below.",
+                 font=("Helvetica", 10), fg=TEXT_SECONDARY, bg=PANEL_BG).pack(anchor="w")
+
+        # Message input
+        lf_msg = ttk.LabelFrame(self.tab_encrypt, text=" TYPE YOUR SECRET MESSAGE ")
+        lf_msg.pack(fill=tk.X, padx=15, pady=8)
+        f_msg = tk.Frame(lf_msg, bg=CARD_BG)
+        f_msg.pack(fill=tk.X, padx=10, pady=(8, 5))
+        self.enc_tab_text = tk.Text(f_msg, bg="#010409", fg=TEXT_PRIMARY,
+                                    font=("Consolas", 11), height=3, bd=0,
+                                    insertbackground=ACCENT_COLOR, wrap=tk.WORD)
+        self.enc_tab_text.pack(fill=tk.X, padx=5, pady=5)
+        self.enc_tab_text.insert(tk.END, self.var_message.get())
+        self.enc_tab_text.bind("<KeyRelease>", self._on_enc_text_change)
+        self.lbl_enc_char_count = tk.Label(lf_msg, text="Characters: 0  |  Bits needed: 0",
+                                           bg=CARD_BG, fg=TEXT_SECONDARY, font=("Helvetica", 9))
+        self.lbl_enc_char_count.pack(anchor="w", padx=10, pady=(0, 6))
+        self._on_enc_text_change()
+
+        # Encryption method selector
+        lf_method = ttk.LabelFrame(self.tab_encrypt, text=" ENCRYPTION METHOD ")
+        lf_method.pack(fill=tk.X, padx=15, pady=5)
+        methods = [
+            ("OTP",  "One-Time Pad (OTP)",    "Perfect security — key must be ≥ message length"),
+            ("AES",  "AES-256-CBC",            "Industry standard — any key length works"),
+            ("XOR",  "Simple XOR",             "Educational demonstration only"),
+        ]
+        for val, name, desc in methods:
+            f_m = tk.Frame(lf_method, bg=CARD_BG)
+            f_m.pack(fill=tk.X, padx=10, pady=2)
+            ttk.Radiobutton(f_m, text=name, variable=self.var_enc_method, value=val).pack(side=tk.LEFT)
+            tk.Label(f_m, text=desc, font=("Helvetica", 9), fg=TEXT_SECONDARY, bg=CARD_BG).pack(side=tk.LEFT, padx=10)
+
+        # Encrypt button
+        btn_enc = HoverButton(self.tab_encrypt, ACCENT_COLOR, "#00b5d9",
+                              text="🔐 ENCRYPT & SEND",
+                              font=("Helvetica", 13, "bold"), fg=BG_COLOR, height=2,
+                              command=self._run_encrypt_action)
+        btn_enc.pack(fill=tk.X, padx=15, pady=8)
+
+        # Results area (3-step display)
+        lf_steps = ttk.LabelFrame(self.tab_encrypt, text=" ENCRYPTION PIPELINE ")
+        lf_steps.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+
+        f_steps = tk.Frame(lf_steps, bg=CARD_BG)
+        f_steps.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        step_cols = ["🔑 QKD KEY", "🔒 CIPHERTEXT", "🔓 DECRYPTED"]
+        self.enc_step_frames = []
+        for col_i, title in enumerate(step_cols):
+            col_f = tk.Frame(f_steps, bg=CARD_BG,
+                             highlightbackground=BORDER_COLOR, highlightthickness=1)
+            col_f.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+            tk.Label(col_f, text=title, font=("Helvetica", 11, "bold"),
+                     fg=ACCENT_COLOR, bg=CARD_BG).pack(pady=(8, 4))
+            lbl = tk.Label(col_f, text="—", font=("Consolas", 9),
+                           fg=TEXT_PRIMARY, bg=CARD_BG, wraplength=180,
+                           justify=tk.LEFT)
+            lbl.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 10))
+            self.enc_step_frames.append(lbl)
+
+        # Result match label
+        self.lbl_enc_match = tk.Label(lf_steps, text="",
+                                      font=("Helvetica", 12, "bold"),
+                                      fg=TEXT_SECONDARY, bg=CARD_BG)
+        self.lbl_enc_match.pack(pady=(0, 8))
+
+    def _on_enc_text_change(self, event=None):
+        """Update character / bit count as user types."""
+        try:
+            txt = self.enc_tab_text.get("1.0", tk.END).strip()
+            chars = len(txt)
+            bits  = len(txt.encode("utf-8")) * 8
+            self.lbl_enc_char_count.config(
+                text=f"Characters: {chars}  |  Bits needed: {bits}")
+        except Exception:
+            pass
+
+    def _run_encrypt_action(self):
+        """Encrypt button handler — runs in background thread."""
+        if not self.final_key_str:
+            messagebox.showwarning(
+                "No Key",
+                "No QKD key available yet.\n"
+                "Run the simulation first to generate a key."
+            )
+            return
+        msg = self.enc_tab_text.get("1.0", tk.END).strip()
+        if not msg:
+            messagebox.showwarning("Empty Message", "Please type a message to encrypt.")
+            return
+        # Convert key string back to bit list
+        key_bits = [int(b) for b in self.final_key_str]
+        threading.Thread(
+            target=self._encrypt_worker,
+            args=(msg, key_bits),
+            daemon=True
+        ).start()
+
+    def _encrypt_worker(self, msg: str, key_bits: list):
+        """Background thread that calls the encryption module."""
+        try:
+            result = self._encrypt_with_key(key_bits, msg)
+            self._update_ui(self._show_encrypt_result, result)
+        except Exception as exc:
+            self._update_ui(messagebox.showerror, "Encryption Error", str(exc))
+
+    def _encrypt_with_key(self, key_bits: list, msg: str = None) -> dict:
+        """
+        Encrypt *msg* (defaults to var_message) using *key_bits*.
+        Returns a result dict consumed by _show_encrypt_result().
+        """
+        if msg is None:
+            msg = self.var_message.get()
+        method  = self.var_enc_method.get()
+        ciphertext_hex = ""
+        decrypted = ""
+        matched   = False
+        iv_bytes  = None
+        cipher_bits = []
+
+        try:
+            # Import lazily to avoid slowing startup
+            from encryption import (
+                otp_encrypt, otp_decrypt,
+                aes_encrypt, aes_decrypt,
+                simple_encrypt, simple_decrypt,
+                AES_AVAILABLE, _bits_to_hex,
+            )
+            msg_bits_needed = len(msg.encode("utf-8")) * 8
+
+            if method == "OTP":
+                if len(key_bits) >= msg_bits_needed:
+                    cipher_bits, _ = otp_encrypt(msg, key_bits)
+                    ciphertext_hex = _bits_to_hex(cipher_bits)
+                    decrypted = otp_decrypt(cipher_bits, key_bits)
+                else:
+                    method = "AES"   # silent fallback
+
+            if method == "AES":
+                if AES_AVAILABLE:
+                    cb, iv_bytes = aes_encrypt(msg, key_bits)
+                    ciphertext_hex = cb.hex()
+                    decrypted = aes_decrypt(bytes.fromhex(ciphertext_hex), iv_bytes, key_bits)
+                else:
+                    method = "XOR"
+
+            if method == "XOR":
+                ciphertext_hex = simple_encrypt(msg, key_bits)
+                decrypted = simple_decrypt(ciphertext_hex, key_bits)
+
+            matched = (decrypted == msg)
+        except Exception as exc:
+            decrypted = f"ERROR: {exc}"
+            matched   = False
+
+        self.last_enc_result = {
+            "message":  msg,
+            "method":   method,
+            "cipher":   ciphertext_hex,
+            "decrypted": decrypted,
+            "matched":  matched,
+            "key_len":  len(key_bits),
+        }
+        return self.last_enc_result
+
+    def _show_encrypt_result(self, result: dict):
+        """Update Encrypt tab step labels with encryption results."""
+        if not result:
+            return
+        key_preview   = self.final_key_str[:32] + "..." if len(self.final_key_str) > 32 else self.final_key_str
+        cipher_preview = result["cipher"][:32] + "..." if len(result["cipher"]) > 32 else result["cipher"]
+        dec_preview   = result["decrypted"][:60] + "..." if len(result["decrypted"]) > 60 else result["decrypted"]
+
+        self.enc_step_frames[0].config(
+            text=f"{key_preview}\n\n{result['key_len']} bits",
+            fg=ACCENT_COLOR)
+        self.enc_step_frames[1].config(
+            text=f"Method: {result['method']}\n\n{cipher_preview}",
+            fg=WARN_COLOR)
+        self.enc_step_frames[2].config(
+            text=dec_preview,
+            fg=SUCCESS_COLOR if result["matched"] else DANGER_COLOR)
+
+        if result["matched"]:
+            self.lbl_enc_match.config(text="✅ PERFECT MATCH — End-to-end encryption verified!",
+                                      fg=SUCCESS_COLOR)
+        else:
+            self.lbl_enc_match.config(text="❌ MISMATCH — Check key or method",
+                                      fg=DANGER_COLOR)
+        # Switch to the encrypt tab
+        self.notebook.select(self.tab_encrypt)
+
+    # ── Tab 5: Network Mode ─────────────────────────────────────────────────
+    def _setup_network_tab(self):
+        """Build the 🌐 NETWORK MODE tab."""
+        hdr = tk.Frame(self.tab_network, bg=PANEL_BG)
+        hdr.pack(fill=tk.X, padx=15, pady=(15, 5))
+        tk.Label(hdr, text="🌐 REAL NETWORK QKD",
+                 font=("Helvetica", 13, "bold"), fg=ACCENT_COLOR, bg=PANEL_BG).pack(anchor="w")
+        tk.Label(hdr, text="Run Alice and Bob on real TCP/IP sockets across one machine or two computers.",
+                 font=("Helvetica", 10), fg=TEXT_SECONDARY, bg=PANEL_BG).pack(anchor="w")
+
+        # Mode selection
+        lf_mode = ttk.LabelFrame(self.tab_network, text=" SELECT NETWORK MODE ")
+        lf_mode.pack(fill=tk.X, padx=15, pady=8)
+        modes = [
+            ("Demo",   "Demo Mode",              "Simulated network — no extra terminals needed"),
+            ("Local",  "Same Machine (2 terminals)", "Run alice + bob on this computer"),
+            ("Remote", "Two Computers (same WiFi)", "Run on separate machines over LAN"),
+        ]
+        for val, name, desc in modes:
+            f_m = tk.Frame(lf_mode, bg=CARD_BG)
+            f_m.pack(fill=tk.X, padx=10, pady=3)
+            ttk.Radiobutton(f_m, text=name, variable=self.var_net_mode, value=val).pack(side=tk.LEFT)
+            tk.Label(f_m, text=f"— {desc}", font=("Helvetica", 9), fg=TEXT_SECONDARY, bg=CARD_BG).pack(side=tk.LEFT, padx=8)
+
+        # Connection panel (Alice + Bob side by side)
+        lf_conn = ttk.LabelFrame(self.tab_network, text=" CONNECTION SETUP ")
+        lf_conn.pack(fill=tk.X, padx=15, pady=5)
+        f_sides = tk.Frame(lf_conn, bg=CARD_BG)
+        f_sides.pack(fill=tk.X, padx=10, pady=8)
+
+        # Alice side
+        f_alice = tk.Frame(f_sides, bg=BG_COLOR,
+                           highlightbackground=ACCENT_COLOR, highlightthickness=1)
+        f_alice.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        tk.Label(f_alice, text="👩 ALICE (Server)",
+                 font=("Helvetica", 11, "bold"), fg=ACCENT_COLOR, bg=BG_COLOR).pack(pady=(10, 4))
+        tk.Label(f_alice, text="Host: 0.0.0.0  Port: 9999",
+                 font=("Consolas", 9), fg=TEXT_SECONDARY, bg=BG_COLOR).pack()
+        HoverButton(f_alice, BTN_HOVER, "#155abf",
+                    text="▶ Start Server",
+                    font=("Helvetica", 10, "bold"), fg="white",
+                    command=self._net_start_alice).pack(fill=tk.X, padx=10, pady=8)
+
+        # Bob side
+        f_bob = tk.Frame(f_sides, bg=BG_COLOR,
+                         highlightbackground=SUCCESS_COLOR, highlightthickness=1)
+        f_bob.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
+        tk.Label(f_bob, text="👨 BOB (Client)",
+                 font=("Helvetica", 11, "bold"), fg=SUCCESS_COLOR, bg=BG_COLOR).pack(pady=(10, 4))
+        f_bob_ip = tk.Frame(f_bob, bg=BG_COLOR)
+        f_bob_ip.pack(fill=tk.X, padx=10)
+        tk.Label(f_bob_ip, text="Alice IP:", font=("Helvetica", 9), fg=TEXT_SECONDARY, bg=BG_COLOR).pack(anchor="w")
+        tk.Entry(f_bob_ip, textvariable=self.var_net_ip,
+                 bg="#0d1117", fg=TEXT_PRIMARY, insertbackground=ACCENT_COLOR,
+                 relief=tk.FLAT, font=("Consolas", 9)).pack(fill=tk.X, pady=3)
+        HoverButton(f_bob, BORDER_COLOR, SUCCESS_COLOR,
+                    text="🔌 Connect to Alice",
+                    font=("Helvetica", 10, "bold"), fg="white",
+                    command=self._net_start_bob).pack(fill=tk.X, padx=10, pady=8)
+
+        # Network status indicator
+        f_status = tk.Frame(lf_conn, bg=CARD_BG)
+        f_status.pack(fill=tk.X, padx=10, pady=(0, 8))
+        self.lbl_net_status = tk.Label(
+            f_status,
+            text="⬤⬤  DISCONNECTED",
+            font=("Helvetica", 11, "bold"),
+            fg=DANGER_COLOR, bg=CARD_BG
+        )
+        self.lbl_net_status.pack(anchor="w")
+
+        # Network log
+        lf_log = ttk.LabelFrame(self.tab_network, text=" NETWORK LOG ")
+        lf_log.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+        f_log = tk.Frame(lf_log, bg="#010409")
+        f_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.net_log = tk.Text(f_log, bg="#010409", fg=TEXT_PRIMARY,
+                               font=("Consolas", 10), state=tk.DISABLED,
+                               bd=0, highlightthickness=0)
+        sb = tk.Scrollbar(f_log, command=self.net_log.yview)
+        self.net_log.config(yscrollcommand=sb.set)
+        self.net_log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.net_log.tag_config("info",    foreground=ACCENT_COLOR)
+        self.net_log.tag_config("success", foreground=SUCCESS_COLOR)
+        self.net_log.tag_config("warn",    foreground=WARN_COLOR)
+
+        # Instructions panel
+        lf_inst = ttk.LabelFrame(self.tab_network, text=" HOW TO RUN ON TWO COMPUTERS ")
+        lf_inst.pack(fill=tk.X, padx=15, pady=(0, 10))
+        steps = [
+            "1. Run this app on Computer 1 → Open ⚙️ QUANTUM BACKEND tab → select backend",
+            "2. Click  ▶ Start Server  (Alice listens on port 9999)",
+            "3. On Computer 1, open Terminal → type 'ifconfig' (Mac/Linux) or 'ipconfig' (Windows)",
+            "4. Note the 'inet' address, e.g. 192.168.1.42 — that is Alice's IP",
+            "5. Run this app on Computer 2 → enter Alice's IP in the Bob panel",
+            "6. Click  🔌 Connect to Alice  — BB84 protocol runs over your LAN",
+            "7. OR: python network_alice.py / python network_bob.py 192.168.1.42",
+        ]
+        f_inst = tk.Frame(lf_inst, bg=CARD_BG)
+        f_inst.pack(fill=tk.X, padx=10, pady=(6, 8))
+        for step in steps:
+            tk.Label(f_inst, text=step, font=("Helvetica", 9), fg=TEXT_SECONDARY,
+                     bg=CARD_BG, anchor="w", justify=tk.LEFT).pack(anchor="w", pady=1)
+
+    def _net_log(self, msg: str, tag: str = "info"):
+        """Append a timestamped line to the network log widget."""
+        ts  = datetime.datetime.now().strftime("[%H:%M:%S] ")
+        self.net_log.config(state=tk.NORMAL)
+        self.net_log.insert(tk.END, ts,  "")
+        self.net_log.insert(tk.END, msg + "\n", tag)
+        self.net_log.config(state=tk.DISABLED)
+        self.net_log.see(tk.END)
+
+    def _net_start_alice(self):
+        """Launch network_alice.py in a background subprocess."""
+        self._net_log("Launching Alice server (network_alice.py)...", "info")
+        self.lbl_net_status.config(text="⬤⬤  ALICE LISTENING on :9999", fg=WARN_COLOR)
+        def _run():
+            import subprocess
+            proc = subprocess.Popen(
+                [sys.executable, "network_alice.py"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            for line in proc.stdout:
+                self._update_ui(self._net_log, line.rstrip(), "success")
+            self._update_ui(self.lbl_net_status.config,
+                            {"text": "⬤⬤  DISCONNECTED", "fg": DANGER_COLOR})
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _net_start_bob(self):
+        """Launch network_bob.py in a background subprocess."""
+        ip = self.var_net_ip.get() or "127.0.0.1"
+        self._net_log(f"Launching Bob client → connecting to {ip}:9999...", "info")
+        self.lbl_net_status.config(text="⬤⬤  CONNECTING...", fg=WARN_COLOR)
+        def _run():
+            import subprocess
+            proc = subprocess.Popen(
+                [sys.executable, "network_bob.py", ip],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            self._update_ui(self.lbl_net_status.config,
+                            {"text": "⬤⬤  CONNECTED", "fg": SUCCESS_COLOR})
+            for line in proc.stdout:
+                self._update_ui(self._net_log, line.rstrip(), "success")
+            self._update_ui(self.lbl_net_status.config,
+                            {"text": "⬤⬤  DISCONNECTED", "fg": DANGER_COLOR})
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ── Tab 6: Quantum Backend ──────────────────────────────────────────────
+    def _setup_backend_tab(self):
+        """Build the ⚙️ QUANTUM BACKEND tab."""
+        hdr = tk.Frame(self.tab_backend, bg=PANEL_BG)
+        hdr.pack(fill=tk.X, padx=15, pady=(15, 5))
+        tk.Label(hdr, text="⚙️ QUANTUM BACKEND SELECTION",
+                 font=("Helvetica", 13, "bold"), fg=ACCENT_COLOR, bg=PANEL_BG).pack(anchor="w")
+        tk.Label(hdr, text="Choose the randomness engine. All backends produce the same BB84 protocol.",
+                 font=("Helvetica", 10), fg=TEXT_SECONDARY, bg=PANEL_BG).pack(anchor="w")
+
+        # Backend cards
+        lf_be = ttk.LabelFrame(self.tab_backend, text=" CHOOSE QUANTUM BACKEND ")
+        lf_be.pack(fill=tk.X, padx=15, pady=8)
+
+        backends = [
+            ("Simulation", "🖥️  Simulation Mode",
+             "Fast pseudo-random — no extra install needed.",
+             "Currently Active", None),
+            ("Qiskit",     "⚛️  Qiskit AerSimulator",
+             "Real quantum circuits, runs locally without internet.",
+             "Requires: pip install qiskit qiskit-aer",
+             self._check_qiskit),
+            ("IBM",        "🌐  IBM Quantum Hardware",
+             "Real QPU — actual quantum computer online.",
+             "Requires a free IBM Quantum account + API token.",
+             None),
+        ]
+
+        for val, title, desc, note, btn_cmd in backends:
+            f_card = tk.Frame(lf_be, bg=BG_COLOR,
+                              highlightbackground=BORDER_COLOR, highlightthickness=1)
+            f_card.pack(fill=tk.X, padx=10, pady=5)
+
+            f_top_row = tk.Frame(f_card, bg=BG_COLOR)
+            f_top_row.pack(fill=tk.X, padx=10, pady=(8, 2))
+            ttk.Radiobutton(f_top_row, text=title, variable=self.var_backend,
+                            value=val, command=self._on_backend_change).pack(side=tk.LEFT)
+            if note:
+                tk.Label(f_top_row, text=f"[{note}]",
+                         font=("Helvetica", 9), fg=TEXT_SECONDARY,
+                         bg=BG_COLOR).pack(side=tk.LEFT, padx=10)
+
+            tk.Label(f_card, text=desc, font=("Helvetica", 9),
+                     fg=TEXT_SECONDARY, bg=BG_COLOR).pack(anchor="w", padx=28, pady=(0, 4))
+
+            if btn_cmd:
+                HoverButton(f_card, BORDER_COLOR, BTN_HOVER,
+                            text="Check & Enable",
+                            font=("Helvetica", 9), fg="white",
+                            command=btn_cmd).pack(anchor="w", padx=28, pady=(0, 8))
+
+        # IBM Token input
+        lf_ibm = ttk.LabelFrame(self.tab_backend, text=" IBM QUANTUM API TOKEN ")
+        lf_ibm.pack(fill=tk.X, padx=15, pady=5)
+        f_ibm = tk.Frame(lf_ibm, bg=CARD_BG)
+        f_ibm.pack(fill=tk.X, padx=10, pady=8)
+        tk.Label(f_ibm, text="API Token:", font=("Helvetica", 9),
+                 fg=TEXT_SECONDARY, bg=CARD_BG).pack(anchor="w")
+        tk.Entry(f_ibm, textvariable=self.var_ibm_token,
+                 bg="#0d1117", fg=TEXT_PRIMARY,
+                 insertbackground=ACCENT_COLOR, relief=tk.FLAT,
+                 font=("Consolas", 9), show="*").pack(fill=tk.X, pady=3)
+        HoverButton(f_ibm, BTN_HOVER, "#155abf",
+                    text="Test IBM Quantum Connection",
+                    font=("Helvetica", 9), fg="white",
+                    command=self._test_ibm_connection).pack(anchor="w", pady=4)
+
+        # Status card
+        lf_status = ttk.LabelFrame(self.tab_backend, text=" ACTIVE BACKEND STATUS ")
+        lf_status.pack(fill=tk.X, padx=15, pady=8)
+        f_st = tk.Frame(lf_status, bg=BG_COLOR,
+                        highlightbackground=BORDER_COLOR, highlightthickness=1)
+        f_st.pack(fill=tk.X, padx=10, pady=8)
+        self.lbl_be_name    = tk.Label(f_st, text="🖥️  Simulation Mode",
+                                       font=("Helvetica", 13, "bold"), fg=ACCENT_COLOR, bg=BG_COLOR)
+        self.lbl_be_name.pack(anchor="w", padx=15, pady=(10, 2))
+        self.lbl_be_details = tk.Label(
+            f_st,
+            text="Randomness: Pseudo-random  |  Speed: Very Fast  |  Status: ✅ Ready",
+            font=("Helvetica", 9), fg=TEXT_SECONDARY, bg=BG_COLOR
+        )
+        self.lbl_be_details.pack(anchor="w", padx=15, pady=(0, 10))
+
+    def _on_backend_change(self):
+        """Update the status card when a backend radio is clicked."""
+        be = self.var_backend.get()
+        info = {
+            "Simulation": ("🖥️  Simulation Mode",
+                           "Randomness: Pseudo-random  |  Speed: Very Fast  |  Status: ✅ Ready"),
+            "Qiskit":     ("⚛️  Qiskit AerSimulator",
+                           "Randomness: Quantum (H-gate)  |  Speed: Fast  |  Status: checking..."),
+            "IBM":        ("🌐  IBM Quantum Hardware",
+                           "Randomness: Real QPU  |  Speed: Slow (queue)  |  Status: check token"),
+        }
+        name, detail = info.get(be, info["Simulation"])
+        self.lbl_be_name.config(text=name)
+        self.lbl_be_details.config(text=detail)
+        self.lbl_sb_mode.config(text=f"Mode: {be}")
+
+    def _check_qiskit(self):
+        """Try importing Qiskit and report availability."""
+        def _worker():
+            try:
+                import qiskit
+                from qiskit_aer import AerSimulator
+                msg = f"✅ Qiskit {qiskit.__version__} found — AerSimulator Ready!"
+                colour = SUCCESS_COLOR
+                self._qiskit_available = True
+            except ImportError:
+                msg = "❌ Qiskit not found.\n\nInstall with:\n  pip install qiskit qiskit-aer"
+                colour = DANGER_COLOR
+                self._qiskit_available = False
+            self._update_ui(self.lbl_be_details.config,
+                            {"text": msg, "fg": colour})
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _test_ibm_connection(self):
+        """Test the IBM Quantum token (non-blocking)."""
+        token = self.var_ibm_token.get().strip()
+        if not token:
+            messagebox.showwarning("No Token",
+                                   "Please enter your IBM Quantum API token first.")
+            return
+        self.lbl_be_details.config(
+            text="Testing IBM Quantum connection...", fg=WARN_COLOR)
+        def _worker():
+            try:
+                from qiskit_ibm_runtime import QiskitRuntimeService
+                svc = QiskitRuntimeService(channel="ibm_quantum", token=token)
+                backends = svc.backends()
+                msg = (f"✅ IBM Quantum connected!  "
+                       f"{len(backends)} backend(s) available.")
+                colour = SUCCESS_COLOR
+            except Exception as exc:
+                msg    = f"❌ Connection failed: {str(exc)[:80]}"
+                colour = DANGER_COLOR
+            self._update_ui(self.lbl_be_details.config,
+                            {"text": msg, "fg": colour})
+        threading.Thread(target=_worker, daemon=True).start()
+
+    # =========================================================================
     # POPUPS
-    # -------------------------------------------------------------------------
+    # =========================================================================
     def _show_about(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("About BB84 Simulator")

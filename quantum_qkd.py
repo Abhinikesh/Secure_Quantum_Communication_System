@@ -2,6 +2,11 @@
 quantum_qkd.py — Master Real-Quantum BB84 Protocol Runner
 ==========================================================
 
+# NOTE: This implementation uses Qiskit AerSimulator which is a
+# pure SOFTWARE quantum circuit simulator. No physical quantum
+# hardware, internet connection, or IBM account is required.
+# Everything runs locally on your machine.
+
 Ties together QuantumAlice and QuantumBob to run a complete BB84
 Quantum Key Distribution protocol using REAL quantum circuits via Qiskit.
 
@@ -11,19 +16,15 @@ collapsed by measurement, not pseudo-random classical algorithms.
 
 Usage
 -----
-  # Local simulation (free, fast, no account needed):
   python quantum_qkd.py
 
-  # IBM Quantum hardware (requires free IBM account):
   from quantum_qkd import run_quantum_bb84
-  result = run_quantum_bb84(use_real_hardware=True, token="YOUR_TOKEN_HERE")
+  result = run_quantum_bb84(num_qubits=64)
 
-  # Get your token at: https://quantum.ibm.com
-
-Dependencies: qiskit, qiskit-aer, qiskit-ibm-runtime, quantum_alice, quantum_bob, qber
+Dependencies: qiskit, qiskit-aer, quantum_alice, quantum_bob, qber
 """
 
-from typing import Dict, Optional
+from typing import Dict
 
 # ---------------------------------------------------------------------------
 # Local module imports
@@ -36,20 +37,19 @@ from qber import calculate_qber, detect_eavesdropper, privacy_amplification, pri
 # ===========================================================================
 # Master BB84 runner
 # ===========================================================================
-def run_quantum_bb84(
-    num_qubits:        int            = 64,
-    use_real_hardware: bool           = False,
-    token:             Optional[str]  = None,
-) -> Dict:
+def run_quantum_bb84(num_qubits: int = 64) -> Dict:
     """
     Run the complete BB84 protocol using REAL quantum circuits.
 
     Every step that involves randomness or quantum measurement uses
     genuine quantum circuits — not pseudo-random numbers.
 
+    All computation runs locally on Qiskit AerSimulator (software).
+    No IBM account, internet connection, or real hardware is required.
+
     Steps
     -----
-    1. Initialise backends (local AerSimulator or IBM Quantum hardware).
+    1. Initialise Qiskit AerSimulator (software) backend.
     2. Alice generates quantum-random bits & bases, builds state-prep circuits.
     3. Bob generates quantum-random bases & measures Alice's circuits.
     4. Classical basis reconciliation (sifting) over a public channel.
@@ -58,10 +58,7 @@ def run_quantum_bb84(
 
     Parameters
     ----------
-    num_qubits        : Number of photons to simulate (default: 64).
-    use_real_hardware : True  -> submit to real IBM Quantum hardware.
-                        False -> use local AerSimulator (default).
-    token             : IBM Quantum API token (only for real hardware).
+    num_qubits : Number of photons to simulate (default: 64).
 
     Returns
     -------
@@ -75,7 +72,7 @@ def run_quantum_bb84(
         final_key         (list)  : The privacy-amplified secret key bits.
         final_key_length  (int)   : Length of final_key.
     """
-    backend_label = "IBM Quantum Hardware" if use_real_hardware else "Qiskit AerSimulator (local)"
+    backend_label = "Qiskit AerSimulator (software)"
 
     # =========================================================================
     # STEP 1 — Initialise
@@ -91,11 +88,7 @@ def run_quantum_bb84(
     # STEP 2 — Alice prepares REAL quantum states
     # =========================================================================
     print("\n--- STEP 2: Alice prepares real quantum states ---")
-    alice = QuantumAlice(
-        num_qubits        = num_qubits,
-        use_real_hardware = use_real_hardware,
-        ibm_token         = token,
-    )
+    alice = QuantumAlice(num_qubits=num_qubits)
 
     bits, bases, circuits = alice.encode_all(num_qubits)
 
@@ -109,13 +102,8 @@ def run_quantum_bb84(
     print("\n--- STEP 3: Bob performs real quantum measurements ---")
     bob = QuantumBob()
 
-    if use_real_hardware and token:
-        # Submit to real IBM Quantum hardware
-        bob_measurements = bob.run_on_ibm_real_hardware(circuits, ibm_token=token)
-        bob_bases = bob.bases   # set inside run_on_ibm_real_hardware
-    else:
-        # Local AerSimulator — fast and free
-        bob_bases, bob_measurements = bob.measure_all(circuits)
+    # Local AerSimulator — fast and free, no network required
+    bob_bases, bob_measurements = bob.measure_all(circuits)
 
     print(f"✓ Bob performed {num_qubits} real quantum measurements")
 
@@ -172,7 +160,7 @@ def run_quantum_bb84(
         print(f"   Key ({len(final_key)} bits): {preview}")
 
     # =========================================================================
-    # Simulation vs Real Quantum Comparison Table
+    # Qiskit AerSimulator vs Classical Simulation Comparison Table
     # =========================================================================
     _print_comparison_table()
 
@@ -210,25 +198,27 @@ def _abort_result(
 
 # ---------------------------------------------------------------------------
 def _print_comparison_table() -> None:
-    """Print a formatted Simulation vs Real Quantum feature comparison."""
+    """Print a formatted Classical Simulation vs Qiskit AerSimulator comparison."""
     print("\n" + "=" * 65)
-    print("  SIMULATION vs REAL QUANTUM — Feature Comparison")
+    print("  CLASSICAL SIMULATION vs QISKIT AERSIMULAOR — Feature Comparison")
     print("=" * 65)
 
     rows = [
-        ("Feature",          "Classical Simulation",  "Real Quantum (Qiskit)"),
-        ("-" * 18,           "-" * 22,                "-" * 22),
+        ("Feature",          "Classical Simulation",  "Qiskit AerSimulator (software)"),
+        ("-" * 18,           "-" * 22,                "-" * 30),
         ("Randomness",       "Pseudo-random (PRNG)",  "Quantum H-gate meas."),
         ("Photon states",    "Integer 0-3 (fake)",    "Real QuantumCircuit"),
         ("Alice's gates",    "Lookup table",          "X, H Qiskit gates"),
         ("Bob measurement",  "Math formula",          "Qiskit measure gate"),
         ("Basis mismatch",   "random.randint(0,1)",   "Quantum collapse"),
         ("Basis choice",     "random.randint(0,1)",   "Quantum H-gate meas."),
-        ("Hardware",         "CPU only",              "Simulator / IBM QPU"),
+        ("Hardware",         "CPU only",              "CPU (local, no network)"),
+        ("IBM account",      "Not needed",            "Not needed"),
+        ("Internet",         "Not needed",            "Not needed"),
         ("Security proof",   "Algorithmic model",     "Physical law (QM)"),
     ]
 
-    col_w = [20, 24, 24]
+    col_w = [20, 24, 30]
     for row in rows:
         line = " | ".join(f"{cell:<{col_w[j]}}" for j, cell in enumerate(row))
         print(f"  {line}")
@@ -242,10 +232,11 @@ def _print_comparison_table() -> None:
 if __name__ == "__main__":
     print("\n" + "=" * 65)
     print("  Running REAL Quantum BB84 Protocol...")
-    print("  Using Qiskit AerSimulator (local quantum simulation)")
+    print("  Backend: Qiskit AerSimulator (software)")
+    print("  No IBM account or internet connection required.")
     print("=" * 65)
 
-    result = run_quantum_bb84(num_qubits=64, use_real_hardware=False)
+    result = run_quantum_bb84(num_qubits=64)
 
     # Final result summary
     print("\n" + "=" * 65)
@@ -259,19 +250,7 @@ if __name__ == "__main__":
     print(f"  Status               : {result['status']}")
     print(f"  Final key length     : {result['final_key_length']} bits")
     print("=" * 65)
-
-    print("\n" + "-" * 65)
-    print("  To use REAL IBM Quantum Hardware:")
-    print("-" * 65)
-    print("  1. Go to  https://quantum.ibm.com")
-    print("  2. Create a free account")
-    print("  3. Copy your API token from the dashboard")
-    print("  4. Run:")
-    print()
-    print("     from quantum_qkd import run_quantum_bb84")
-    print("     result = run_quantum_bb84(")
-    print("         num_qubits        = 64,")
-    print("         use_real_hardware = True,")
-    print("         token             = 'YOUR_IBM_TOKEN_HERE'")
-    print("     )")
-    print("-" * 65)
+    print("\n  NOTE: All randomness above was generated by real quantum")
+    print("  circuits (Hadamard gate + measurement) via Qiskit AerSimulator.")
+    print("  No physical hardware or IBM account was used.")
+    print("=" * 65)
