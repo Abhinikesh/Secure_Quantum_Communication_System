@@ -183,21 +183,54 @@ class QKDSimulatorGUI:
         # Middle Area Container
         self.main_container = tk.Frame(self.root, bg=BG_COLOR)
         self.main_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
-        # 3. Left Panel
-        self.left_panel = tk.Frame(self.main_container, bg=CARD_BG, width=300, highlightbackground=BORDER_COLOR, highlightthickness=1)
-        self.left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
-        self.left_panel.pack_propagate(False)
+
+        # 3. Left Panel — wrap in a canvas+scrollbar so content never clips
+        left_outer = tk.Frame(self.main_container, bg=CARD_BG,
+                              highlightbackground=BORDER_COLOR, highlightthickness=1,
+                              width=300)
+        left_outer.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
+        left_outer.pack_propagate(False)
+
+        left_canvas = tk.Canvas(left_outer, bg=CARD_BG, width=296,
+                                highlightthickness=0)
+        left_scrollbar = tk.Scrollbar(left_outer, orient=tk.VERTICAL,
+                                      command=left_canvas.yview)
+        left_canvas.configure(yscrollcommand=left_scrollbar.set)
+
+        # Scrollbar only shown when needed — pack scrollbar last so it hides
+        left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.left_panel = tk.Frame(left_canvas, bg=CARD_BG)
+        left_canvas_window = left_canvas.create_window(
+            (0, 0), window=self.left_panel, anchor="nw", width=280)
+
+        def _on_left_frame_configure(event):
+            left_canvas.configure(
+                scrollregion=left_canvas.bbox("all"))
+        def _on_left_canvas_configure(event):
+            left_canvas.itemconfig(left_canvas_window, width=event.width)
+
+        self.left_panel.bind("<Configure>", _on_left_frame_configure)
+        left_canvas.bind("<Configure>", _on_left_canvas_configure)
+
+        # Mouse-wheel scrolling on the left panel
+        def _on_left_mousewheel(event):
+            left_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        left_canvas.bind_all("<MouseWheel>", _on_left_mousewheel)
+
         self._setup_left_panel()
-        
+
         # 5. Right Panel (doing this before center so center expands)
-        self.right_panel = tk.Frame(self.main_container, bg=CARD_BG, width=300, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        self.right_panel = tk.Frame(self.main_container, bg=CARD_BG, width=300,
+                                    highlightbackground=BORDER_COLOR, highlightthickness=1)
         self.right_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
         self.right_panel.pack_propagate(False)
         self._setup_right_panel()
-        
+
         # 4. Center Panel
-        self.center_panel = tk.Frame(self.main_container, bg=PANEL_BG, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        self.center_panel = tk.Frame(self.main_container, bg=PANEL_BG,
+                                     highlightbackground=BORDER_COLOR, highlightthickness=1)
         self.center_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=10)
         self._setup_center_panel()
 
@@ -399,9 +432,9 @@ class QKDSimulatorGUI:
         tk.Entry(f_net4, textvariable=self.var_net_port, bg="#0d1117", fg=TEXT_PRIMARY,
                  insertbackground=ACCENT_COLOR, relief=tk.FLAT, font=("Consolas", 9), width=8).pack(anchor="w", pady=2)
 
-        # SECTION 6 — Speed (original — now at bottom)
+        # SECTION 6 — Speed (always at bottom of scroll, NOT side=BOTTOM which causes overlap)
         f_spd = tk.Frame(self.left_panel, bg=CARD_BG)
-        f_spd.pack(fill=tk.X, padx=15, pady=10, side=tk.BOTTOM)
+        f_spd.pack(fill=tk.X, padx=15, pady=(10, 20))
         tk.Label(f_spd, text="Simulation Speed", bg=CARD_BG, fg=TEXT_PRIMARY).pack(anchor="center")
         f_r = tk.Frame(f_spd, bg=CARD_BG)
         f_r.pack(pady=5)
@@ -417,10 +450,12 @@ class QKDSimulatorGUI:
         self.lbl_qubits.config(text=f"Number of Qubits: {closest}")
 
     def _toggle_eve(self):
-        state = not self.var_eve_enabled.get()
-        self.var_eve_enabled.set(state)
-        
-        if state:
+        # Read the CURRENT state, then flip it
+        current = self.var_eve_enabled.get()
+        new_state = not current
+        self.var_eve_enabled.set(new_state)
+
+        if new_state:
             self.btn_toggle_eve.config(text="ENABLE EVE: ON", bg=DANGER_COLOR)
             self.scale_irate.state(['!disabled'])
             self.lbl_irate.config(fg=TEXT_PRIMARY)
@@ -468,14 +503,20 @@ class QKDSimulatorGUI:
         f_top = tk.Frame(self.tab_protocol, bg=PANEL_BG, height=300)
         f_top.pack(fill=tk.X, pady=10)
         f_top.pack_propagate(False)
-        
-        self.anim_canvas = tk.Canvas(f_top, bg=BG_COLOR, highlightthickness=1, highlightbackground=BORDER_COLOR)
+
+        self.anim_canvas = tk.Canvas(f_top, bg=BG_COLOR,
+                                     highlightthickness=1,
+                                     highlightbackground=BORDER_COLOR)
         self.anim_canvas.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        
-        # Draw static elements on canvas
-        self._draw_static_canvas()
-        
-        self.lbl_anim_step = tk.Label(f_top, text="Awaiting Simulation Start...", font=("Helvetica", 14), fg=TEXT_SECONDARY, bg=PANEL_BG)
+
+        # Draw static elements once canvas is sized (bind Configure)
+        self.anim_canvas.bind(
+            "<Configure>",
+            lambda e: self.root.after(10, self._draw_static_canvas))
+
+        self.lbl_anim_step = tk.Label(
+            f_top, text="Awaiting Simulation Start...",
+            font=("Helvetica", 14), fg=TEXT_SECONDARY, bg=PANEL_BG)
         self.lbl_anim_step.pack(pady=5)
         
         # BOTTOM - Log
@@ -503,27 +544,73 @@ class QKDSimulatorGUI:
         self.log_text.tag_config('time', foreground=TEXT_SECONDARY)
 
     def _draw_static_canvas(self):
+        """Draw the Alice–Channel–Bob diagram. Uses canvas pixel coords
+        that match the fixed 300-pixel-tall canvas frame."""
         cv = self.anim_canvas
-        w = 700  # Virtual width
-        h = 240
-        
-        # ALICE
-        cv.create_rectangle(50, 80, 160, 160, outline=ACCENT_COLOR, fill=CARD_BG, width=2)
-        cv.create_text(105, 120, text="👩 Alice", font=("Helvetica", 14, "bold"), fill=TEXT_PRIMARY)
-        cv.create_text(105, 55, text="SENDER", font=("Helvetica", 10), fill=TEXT_SECONDARY)
-        
-        # BOB
-        cv.create_rectangle(540, 80, 650, 160, outline=SUCCESS_COLOR, fill=CARD_BG, width=2)
-        cv.create_text(595, 120, text="👨 Bob", font=("Helvetica", 14, "bold"), fill=TEXT_PRIMARY)
-        cv.create_text(595, 55, text="RECEIVER", font=("Helvetica", 10), fill=TEXT_SECONDARY)
-        
+        cv.update_idletasks()   # ensure canvas has real dimensions
+        W = cv.winfo_width()  or 700
+        H = cv.winfo_height() or 240
+
+        # Clear any previous drawing (safe on re-configure)
+        cv.delete("static")
+
+        # Layout proportions
+        left_cx  = int(W * 0.14)          # Alice centre-x
+        right_cx = int(W * 0.86)          # Bob centre-x
+        box_w, box_h = 110, 80
+        mid_y = int(H * 0.45)             # vertical centre of boxes
+
+        # ALICE box
+        cv.create_rectangle(
+            left_cx - box_w//2, mid_y - box_h//2,
+            left_cx + box_w//2, mid_y + box_h//2,
+            outline=ACCENT_COLOR, fill=CARD_BG, width=2, tags="static")
+        cv.create_text(left_cx, mid_y, text="👩 Alice",
+                       font=("Helvetica", 13, "bold"),
+                       fill=TEXT_PRIMARY, tags="static")
+        cv.create_text(left_cx, mid_y - box_h//2 - 16,
+                       text="SENDER",
+                       font=("Helvetica", 9), fill=TEXT_SECONDARY, tags="static")
+
+        # BOB box
+        cv.create_rectangle(
+            right_cx - box_w//2, mid_y - box_h//2,
+            right_cx + box_w//2, mid_y + box_h//2,
+            outline=SUCCESS_COLOR, fill=CARD_BG, width=2, tags="static")
+        cv.create_text(right_cx, mid_y, text="👨 Bob",
+                       font=("Helvetica", 13, "bold"),
+                       fill=TEXT_PRIMARY, tags="static")
+        cv.create_text(right_cx, mid_y - box_h//2 - 16,
+                       text="RECEIVER",
+                       font=("Helvetica", 9), fill=TEXT_SECONDARY, tags="static")
+
         # Channel line
-        cv.create_line(160, 120, 540, 120, fill=TEXT_SECONDARY, dash=(4, 4), width=2)
-        cv.create_text(350, 105, text="QUANTUM CHANNEL", fill=TEXT_SECONDARY, font=("Helvetica", 10))
-        
-        # EVE (always draw but grayed normally)
-        self.eve_rect = cv.create_rectangle(295, 150, 405, 230, outline=IDLE_GRAY, fill=CARD_BG, width=2, dash=(2,2))
-        self.eve_text = cv.create_text(350, 190, text="👤 Eve", font=("Helvetica", 14), fill=IDLE_GRAY)
+        ch_x1 = left_cx  + box_w//2
+        ch_x2 = right_cx - box_w//2
+        cv.create_line(ch_x1, mid_y, ch_x2, mid_y,
+                       fill=TEXT_SECONDARY, dash=(4, 4), width=2, tags="static")
+        cv.create_text(W // 2, mid_y - 16,
+                       text="QUANTUM CHANNEL",
+                       fill=TEXT_SECONDARY, font=("Helvetica", 9), tags="static")
+
+        # EVE box (centred below the channel line)
+        eve_cx = W // 2
+        eve_y1 = mid_y + box_h//2 + 10
+        eve_y2 = eve_y1 + 65
+        self.eve_rect = cv.create_rectangle(
+            eve_cx - 60, eve_y1, eve_cx + 60, eve_y2,
+            outline=IDLE_GRAY, fill=CARD_BG, width=2,
+            dash=(2, 2), tags="static")
+        self.eve_text = cv.create_text(
+            eve_cx, (eve_y1 + eve_y2) // 2,
+            text="👤 Eve",
+            font=("Helvetica", 13), fill=IDLE_GRAY, tags="static")
+
+        # Store layout for photon animation
+        self._ch_x1   = ch_x1
+        self._ch_x2   = ch_x2
+        self._ch_y    = mid_y
+        self._eve_cx  = eve_cx
 
     def _setup_graphs_tab(self):
         self.fig = Figure(figsize=(10, 5), dpi=100, facecolor=PANEL_BG)
@@ -616,11 +703,16 @@ class QKDSimulatorGUI:
         
         self.lbls_stat = {}
         for i, title in enumerate(["TOTAL RUNS", "SUCCESSFUL", "ABORTED", "AVG QBER"]):
-            f = tk.Frame(f_cards, bg=CARD_BG, highlightbackground=ACCENT_COLOR, highlightthickness=1)
+            f = tk.Frame(f_cards, bg=CARD_BG,
+                         highlightbackground=ACCENT_COLOR, highlightthickness=1)
             f.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-            tk.Label(f, text=title, font=("Helvetica", 10), fg=TEXT_SECONDARY, bg=CARD_BG).pack(pady=(10, 0))
-            lbl_val = tk.Label(f, text="0" if i<3 else "0.0%", font=("Helvetica", 28, "bold"), fg=TEXT_PRIMARY, bg=CARD_BG)
-            lbl_val.pack(pady=(5, 10))
+            tk.Label(f, text=title, font=("Helvetica", 9),
+                     fg=TEXT_SECONDARY, bg=CARD_BG).pack(pady=(8, 0))
+            # Use font size 20 so multi-line text (count + %) fits inside the card
+            lbl_val = tk.Label(f, text="0" if i < 3 else "0.0%",
+                               font=("Helvetica", 20, "bold"),
+                               fg=TEXT_PRIMARY, bg=CARD_BG, justify=tk.CENTER)
+            lbl_val.pack(pady=(4, 8))
             self.lbls_stat[title] = lbl_val
             
         # ROW 2 - Treeview 
@@ -685,14 +777,29 @@ class QKDSimulatorGUI:
         lf_key = ttk.LabelFrame(self.right_panel, text=" 🔑 KEY INFORMATION ")
         lf_key.pack(fill=tk.X, padx=15, pady=10)
         
-        self.lbl_ki_qubits = tk.Label(lf_key, text="Initial Qubits:    --", bg=CARD_BG, fg=TEXT_PRIMARY)
-        self.lbl_ki_qubits.pack(anchor="w", padx=10, pady=2)
-        self.lbl_ki_sifted = tk.Label(lf_key, text="Sifted Key:        --", bg=CARD_BG, fg=TEXT_PRIMARY)
-        self.lbl_ki_sifted.pack(anchor="w", padx=10, pady=2)
-        self.lbl_ki_sample = tk.Label(lf_key, text="Sample Used:        --", bg=CARD_BG, fg=TEXT_PRIMARY)
-        self.lbl_ki_sample.pack(anchor="w", padx=10, pady=2)
-        self.lbl_ki_final = tk.Label(lf_key, text="Final Key Length:   --", bg=CARD_BG, fg=ACCENT_COLOR, font=("Helvetica", 10, "bold"))
-        self.lbl_ki_final.pack(anchor="w", padx=10, pady=(2, 10))
+        # Use a grid inside the LabelFrame for clean alignment
+        f_ki = tk.Frame(lf_key, bg=CARD_BG)
+        f_ki.pack(fill=tk.X, padx=10, pady=(6, 10))
+        ki_labels  = ["Initial Qubits", "Sifted Key", "Sample Used", "Final Key"]
+        ki_colors  = [TEXT_PRIMARY, TEXT_PRIMARY, TEXT_PRIMARY, ACCENT_COLOR]
+        ki_fonts   = [("Helvetica", 10)] * 3 + [("Helvetica", 10, "bold")]
+        self.lbl_ki_vals = {}
+        for row_i, (name, col, fnt) in enumerate(
+                zip(ki_labels, ki_colors, ki_fonts)):
+            tk.Label(f_ki, text=f"{name}:",
+                     font=("Helvetica", 9), fg=TEXT_SECONDARY,
+                     bg=CARD_BG, anchor="w", width=14).grid(
+                         row=row_i, column=0, sticky="w", pady=2)
+            lbl = tk.Label(f_ki, text="--", font=fnt,
+                           fg=col, bg=CARD_BG, anchor="w")
+            lbl.grid(row=row_i, column=1, sticky="w", padx=6, pady=2)
+            self.lbl_ki_vals[name] = lbl
+
+        # Keep backward-compat aliases
+        self.lbl_ki_qubits = self.lbl_ki_vals["Initial Qubits"]
+        self.lbl_ki_sifted = self.lbl_ki_vals["Sifted Key"]
+        self.lbl_ki_sample = self.lbl_ki_vals["Sample Used"]
+        self.lbl_ki_final  = self.lbl_ki_vals["Final Key"]
 
         # SECTION 4 - Final Key
         tk.Label(self.right_panel, text="FINAL SECRET KEY", font=("Helvetica", 10, "bold"), fg=TEXT_SECONDARY, bg=CARD_BG).pack(pady=(5,0))
@@ -783,10 +890,10 @@ class QKDSimulatorGUI:
         self.text_final_key.delete(1.0, tk.END)
         self.text_final_key.config(state=tk.DISABLED)
         
-        self.lbl_ki_qubits.config(text="Initial Qubits:    --")
-        self.lbl_ki_sifted.config(text="Sifted Key:        --")
-        self.lbl_ki_sample.config(text="Sample Used:        --")
-        self.lbl_ki_final.config(text="Final Key Length:   --")
+        self.lbl_ki_qubits.config(text="--")
+        self.lbl_ki_sifted.config(text="--")
+        self.lbl_ki_sample.config(text="--")
+        self.lbl_ki_final.config(text="--")
         
         self._update_status_bar_info()
 
@@ -838,32 +945,41 @@ class QKDSimulatorGUI:
     def _animate_photons(self, is_eve_active):
         if not self.is_running:
             return
-            
+
         cv = self.anim_canvas
         speed_mapping = {"Fast": 5, "Normal": 15, "Slow": 30}
         delay = speed_mapping.get(self.var_speed.get(), 15)
-        
-        # Spawn probability
-        if random.random() < 0.2: # 20% chance to spawn a new photon per frame
-            y_pos = random.randint(110, 130)
-            p = cv.create_oval(160, y_pos-4, 168, y_pos+4, fill=ACCENT_COLOR, outline=ACCENT_COLOR)
+
+        # Use dynamic channel coords from _draw_static_canvas
+        ch_x1 = getattr(self, '_ch_x1', 160)
+        ch_y  = getattr(self, '_ch_y',  120)
+
+        if random.random() < 0.2:   # 20% chance per frame
+            y_pos = random.randint(ch_y - 6, ch_y + 6)
+            p = cv.create_oval(ch_x1, y_pos - 4, ch_x1 + 8, y_pos + 4,
+                               fill=ACCENT_COLOR, outline=ACCENT_COLOR)
             self._move_photon(p, is_eve_active, delay)
-            
+
         self.root.after(delay * 5, lambda: self._animate_photons(is_eve_active))
 
     def _move_photon(self, p, is_eve_active, delay):
         if not self.is_running:
             self.anim_canvas.delete(p)
             return
-            
+
         coords = self.anim_canvas.coords(p)
-        if not coords: return
+        if not coords:
+            return
         x1, y1, x2, y2 = coords
-        
-        if is_eve_active and 290 < x1 < 310:
+
+        ch_x2  = getattr(self, '_ch_x2',  540)
+        eve_cx = getattr(self, '_eve_cx', 350)
+
+        # Colour photon red when it passes Eve's intercept zone
+        if is_eve_active and (eve_cx - 15) < x1 < (eve_cx + 15):
             self.anim_canvas.itemconfig(p, fill=DANGER_COLOR, outline=DANGER_COLOR)
-            
-        if x1 > 540:
+
+        if x1 > ch_x2:
             self.anim_canvas.delete(p)
         else:
             self.anim_canvas.move(p, 8, 0)
@@ -1107,11 +1223,11 @@ class QKDSimulatorGUI:
             self.lbl_sb_status.config(text="Aborted")
             self._show_popup("⚠️ Security Alert!", f"Eavesdropper detected!\nQBER: {stats['qber']:.2f}% > Threshold", False)
             
-        # Update Info cards
-        self.lbl_ki_qubits.config(text=f"Initial Qubits:    {stats['start_qubits']}")
-        self.lbl_ki_sifted.config(text=f"Sifted Key:        {stats['sifted']}")
-        self.lbl_ki_sample.config(text=f"Sample Used:        {stats['sample']}")
-        self.lbl_ki_final.config(text=f"Final Key Length:   {stats['final']}")
+        # Update Key Information cards (text-only values, label column is in the grid)
+        self.lbl_ki_qubits.config(text=str(stats['start_qubits']))
+        self.lbl_ki_sifted.config(text=f"{stats['sifted']} bits")
+        self.lbl_ki_sample.config(text=f"{stats['sample']} bits")
+        self.lbl_ki_final.config(text=f"{stats['final']} bits")
         
         # Display Key
         self.text_final_key.config(state=tk.NORMAL)
@@ -1146,15 +1262,23 @@ class QKDSimulatorGUI:
     # STATISTICS AND DISPLAY UDPATES
     # -------------------------------------------------------------------------
     def _update_statistics_tab(self, stats=None):
-        tot  = len(self.run_history)
-        succ = sum(1 for r in self.run_history if r['is_success'])
-        abrt = tot - succ
+        tot   = len(self.run_history)
+        succ  = sum(1 for r in self.run_history if r['is_success'])
+        abrt  = tot - succ
         avg_q = sum(r['qber'] for r in self.run_history) / tot if tot > 0 else 0.0
+        pct   = lambda n: int(n / tot * 100) if tot > 0 else 0
 
-        self.lbls_stat["TOTAL RUNS"].config(text=str(tot))
-        self.lbls_stat["SUCCESSFUL"].config(text=f"{succ}\n✅ {int(succ/tot*100) if tot>0 else 0}%", font=("Helvetica", 14, "bold"))
-        self.lbls_stat["ABORTED"].config(text=f"{abrt}\n❌ {int(abrt/tot*100) if tot>0 else 0}%", font=("Helvetica", 14, "bold"))
-        self.lbls_stat["AVG QBER"].config(text=f"{avg_q:.1f}%")
+        self.lbls_stat["TOTAL RUNS"].config(text=str(tot), font=("Helvetica", 20, "bold"))
+        self.lbls_stat["SUCCESSFUL"].config(
+            text=f"{succ}\n({pct(succ)}%)",
+            font=("Helvetica", 16, "bold"), fg=SUCCESS_COLOR)
+        self.lbls_stat["ABORTED"].config(
+            text=f"{abrt}\n({pct(abrt)}%)",
+            font=("Helvetica", 16, "bold"),
+            fg=DANGER_COLOR if abrt > 0 else TEXT_PRIMARY)
+        self.lbls_stat["AVG QBER"].config(
+            text=f"{avg_q:.1f}%", font=("Helvetica", 20, "bold"),
+            fg=DANGER_COLOR if avg_q > 11 else SUCCESS_COLOR)
 
         # Add to Treeview
         r = self.run_history[-1]
@@ -1187,10 +1311,10 @@ class QKDSimulatorGUI:
         self.run_history.clear()
         for item in self.tree.get_children():
             self.tree.delete(item)
-        self.lbls_stat["TOTAL RUNS"].config(text="0")
-        self.lbls_stat["SUCCESSFUL"].config(text="0\n✅ 0%", font=("Helvetica", 14, "bold"))
-        self.lbls_stat["ABORTED"].config(text="0\n❌ 0%", font=("Helvetica", 14, "bold"))
-        self.lbls_stat["AVG QBER"].config(text="0.0%")
+        self.lbls_stat["TOTAL RUNS"].config(text="0",    font=("Helvetica", 20, "bold"), fg=TEXT_PRIMARY)
+        self.lbls_stat["SUCCESSFUL"].config(text="0\n(0%)",  font=("Helvetica", 16, "bold"), fg=TEXT_PRIMARY)
+        self.lbls_stat["ABORTED"].config(text="0\n(0%)",  font=("Helvetica", 16, "bold"), fg=TEXT_PRIMARY)
+        self.lbls_stat["AVG QBER"].config(text="0.0%",  font=("Helvetica", 20, "bold"), fg=TEXT_PRIMARY)
         self.lbl_analysis.config(text="(History cleared)")
         self._draw_placeholder_graphs()
 
